@@ -195,6 +195,10 @@ pub enum TimeUnit {
 }
 
 pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
+    let comments = choice((
+        just("//").then(take_until(just('\n'))).ignored(),
+        just("/*").then(take_until(just("*/"))).ignored(),
+    )).padded().repeated().ignored();
     let const_keyword = choice((
         just("OPENQASM").to(Token::Openqasm),
         just("include").to(Token::Include),
@@ -208,7 +212,6 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
         just("let").to(Token::Let),
         just("break").to(Token::Break),
         just("continue").to(Token::Continue),
-        just("if").to(Token::If),
         just("else").to(Token::Else),
         just("end").to(Token::End),
         just("return").to(Token::Return),
@@ -216,7 +219,6 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
         just("while").to(Token::While),
         just("input").to(Token::Input),
         just("output").to(Token::Output),
-        just("in").to(Token::In),
     ))
     .or(choice((
         just("const").to(Token::Const),
@@ -235,8 +237,7 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
         just("durationof").to(Token::Durationof),
         just("duration").to(Token::Duration),
         just("stretch").to(Token::Stretch),
-    )))
-    .or(choice((
+    ))).or(choice((
         just("gphase").to(Token::Gphase),
         just("inv").to(Token::Inv),
         just("pow").to(Token::Pow),
@@ -244,39 +245,17 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
         just("ctrl").to(Token::Ctrl),
         just("#dim").to(Token::Dim),
         just("sizeof").to(Token::Sizeof),
-    ))).or(choice((
-        just("arccos").to(Token::BuiltinMath(BuiltinMathToken::Arccos)),
-        just("arcsin").to(Token::BuiltinMath(BuiltinMathToken::Arcsin)),
-        just("arctan").to(Token::BuiltinMath(BuiltinMathToken::Arctan)),
-        just("cos").to(Token::BuiltinMath(BuiltinMathToken::Cos)),
-        just("exp").to(Token::BuiltinMath(BuiltinMathToken::Exp)),
-        just("ln").to(Token::BuiltinMath(BuiltinMathToken::Ln)),
-        just("popcount").to(Token::BuiltinMath(BuiltinMathToken::Popcount)),
-        just("rotl").to(Token::BuiltinMath(BuiltinMathToken::Rotl)),
-        just("rotr").to(Token::BuiltinMath(BuiltinMathToken::Rotr)),
-        just("sin").to(Token::BuiltinMath(BuiltinMathToken::Sin)),
-        just("sqrt").to(Token::BuiltinMath(BuiltinMathToken::Sqrt)),
-        just("tan").to(Token::BuiltinMath(BuiltinMathToken::Tan)),
-    ))).or(choice((
+        just("reset").to(Token::Reset),
+        just("measure").to(Token::Measure),
+        just("Barrier").to(Token::Barrier),
         just("delay").to(Token::BuiltinTimingInstruction(
             BuiltinTimingInstructionToken::Delay,
         )),
         just("rotary").to(Token::BuiltinTimingInstruction(
             BuiltinTimingInstructionToken::Rotary,
         )),
-        just("reset").to(Token::Reset),
-        just("measure").to(Token::Measure),
-        just("Barrier").to(Token::Barrier),
         just("true").to(Token::BooleanLiteral(true)),
         just("false").to(Token::BooleanLiteral(false)),
-        just("pi").to(Token::ConstantLiteral(Constant::Pi)),
-        just("π").to(Token::ConstantLiteral(Constant::Pi)),
-        just("tau").to(Token::ConstantLiteral(Constant::Tau)),
-        just("τ").to(Token::ConstantLiteral(Constant::Tau)),
-        just("euler").to(Token::ConstantLiteral(Constant::Euler)),
-        just("ℇ").to(Token::ConstantLiteral(Constant::Euler)),
-        just("CX").to(Token::CX),
-        just("U").to(Token::U),
     ))).or(choice((
         just("<<=").to(Token::CompoundAssignmentOperator(CompoundAssignmentOperatorToken::LShiftEq)),
         just(">>=").to(Token::CompoundAssignmentOperator(CompoundAssignmentOperatorToken::RShiftEq)),
@@ -290,6 +269,7 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
         just("~=").to(Token::CompoundAssignmentOperator(CompoundAssignmentOperatorToken::TildeEq)),
         just("^=").to(Token::CompoundAssignmentOperator(CompoundAssignmentOperatorToken::CaretEq)),
         just("%=").to(Token::CompoundAssignmentOperator(CompoundAssignmentOperatorToken::PercentEq)),
+    ))).or(choice((
         just("++").to(Token::DoublePlus),
         just("**").to(Token::DoubleAsterisk),
         just("||").to(Token::DoublePipe),
@@ -302,9 +282,74 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
         just("<=").to(Token::ComparisonOperator(ComparisonOperatorToken::LE)),
         just(">").to(Token::ComparisonOperator(ComparisonOperatorToken::GT)),
         just("<").to(Token::ComparisonOperator(ComparisonOperatorToken::LT)),
+        just("[").to(Token::LBracket),
+        just("]").to(Token::RBracket),
+        just("{").to(Token::LBrace),
+        just("}").to(Token::RBrace),
+        just("(").to(Token::LParen),
+        just(")").to(Token::RParen),
+    ))).or(choice((
+        just("+").to(Token::Plus),
+        just("-").to(Token::Minus),
+        just("*").to(Token::Asterisk),
+        just("/").to(Token::Slash),
+        just("%").to(Token::Percent),
+        just("|").to(Token::Pipe),
+        just("&").to(Token::Ampersand),
+        just("^").to(Token::Caret),
+        just("~").to(Token::Tilde),
+        just("@").to(Token::At),
+        just("!").to(Token::ExclamationPoint),
+        just("=").to(Token::Equals),
+        just(":").to(Token::Colon),
+        just(";").to(Token::Semicolon),
+        just(".").to(Token::Dot),
+        just(",").to(Token::Comma),
+    ))).or(choice((
+        just("arccos").to(Token::BuiltinMath(BuiltinMathToken::Arccos)),
+        just("arcsin").to(Token::BuiltinMath(BuiltinMathToken::Arcsin)),
+        just("arctan").to(Token::BuiltinMath(BuiltinMathToken::Arctan)),
+        just("cos").to(Token::BuiltinMath(BuiltinMathToken::Cos)),
+        just("exp").to(Token::BuiltinMath(BuiltinMathToken::Exp)),
+        just("ln").to(Token::BuiltinMath(BuiltinMathToken::Ln)),
+        just("popcount").to(Token::BuiltinMath(BuiltinMathToken::Popcount)),
+        just("rotl").to(Token::BuiltinMath(BuiltinMathToken::Rotl)),
+        just("rotr").to(Token::BuiltinMath(BuiltinMathToken::Rotr)),
+        just("sin").to(Token::BuiltinMath(BuiltinMathToken::Sin)),
+        just("sqrt").to(Token::BuiltinMath(BuiltinMathToken::Sqrt)),
+        just("tan").to(Token::BuiltinMath(BuiltinMathToken::Tan)),
+        just("pi").to(Token::ConstantLiteral(Constant::Pi)),
+        just("π").to(Token::ConstantLiteral(Constant::Pi)),
+        just("tau").to(Token::ConstantLiteral(Constant::Tau)),
+        just("τ").to(Token::ConstantLiteral(Constant::Tau)),
+        just("euler").to(Token::ConstantLiteral(Constant::Euler)),
+        just("ℇ").to(Token::ConstantLiteral(Constant::Euler)),
+        just("dt").to(Token::TimeUnitLiteral(TimeUnit::DT)),
+        just("ns").to(Token::TimeUnitLiteral(TimeUnit::NanoSec)),
+        just("us").to(Token::TimeUnitLiteral(TimeUnit::MicroSec)),
+        just("μs").to(Token::TimeUnitLiteral(TimeUnit::MicroSec)),
+        just("ms").to(Token::TimeUnitLiteral(TimeUnit::MilliSec)),
+        just("s").to(Token::TimeUnitLiteral(TimeUnit::Sec)),
+    ))).or(choice((
+        just("if").to(Token::If),
+        just("im").to(Token::Imag),
+        just("in").to(Token::In),
+        just("CX").to(Token::CX),
+        just("U").to(Token::U),
     )));
     const_keyword
         .padded()
         .map_with_span(move |token, span| (token, span))
         .repeated()
+}
+
+#[cfg(test)]
+mod tests {
+    use chumsky::Parser;
+    use super::{Token, lexer};
+    #[test]
+    fn lexer1() {
+        println!("{:?}", lexer().parse("OPENQASMqubitU>>>"));
+        assert!(false);
+    }
 }
