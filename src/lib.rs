@@ -1,5 +1,5 @@
-mod error;
-mod token;
+pub mod error;
+pub mod token;
 
 #[cfg(test)]
 mod tests {

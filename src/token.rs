@@ -196,14 +196,17 @@ pub enum TimeUnit {
     Sec,
 }
 
-pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
-    let comment = choice((
+fn comment() -> impl Parser<char, (), Error = Error> + Clone {
+    choice((
         just("//").then(take_until(just('\n'))).ignored(),
         just("//").then(take_until(end())).ignored(),
         just("/*").then(take_until(just("*/"))).ignored(),
     ))
-    .padded();
-    let keyword_or_ident = text::ident()
+    .padded()
+}
+
+fn keyword_or_ident() -> impl Parser<char, Token, Error = Error> + Clone {
+    text::ident()
         .map(|s: String| match s.as_str() {
             "OPENQASM" => Token::Openqasm,
             "include" => Token::Include,
@@ -294,8 +297,11 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
             just("τ").to(Token::ConstantLiteral(Constant::Tau)),
             just("ℇ").to(Token::ConstantLiteral(Constant::Euler)),
             just("μs").to(Token::TimeUnitLiteral(TimeUnit::MicroSec)),
-        )));
-    let puncts = choice((
+        )))
+}
+
+fn puncts() -> impl Parser<char, Token, Error = Error> + Clone {
+    choice((
         just("<<=").to(Token::CompoundAssignmentOperator(
             CompoundAssignmentOperatorToken::LShiftEq,
         )),
@@ -370,17 +376,60 @@ pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
         just(";").to(Token::Semicolon),
         just(".").to(Token::Dot),
         just(",").to(Token::Comma),
-    )));
-    let integer_literal = choice((
-            text::int(10).map(|s: String| s.parse()),
-            just("0x").or(just("0X")).ignore_then(text::int(16).map(|s: String| i64::from_str_radix(&s, 16))),
-            just("0o").ignore_then(text::int(8).map(|s: String| i64::from_str_radix(&s, 8))),
-            just("0b").or(just("0B")).ignore_then(text::int(2).map(|s: String| i64::from_str_radix(&s, 2))),
-    )).map(|res| Token::IntegerLiteral(res.expect("Failed to convert to i64")));
-    keyword_or_ident
-        .or(puncts)
-        .or(integer_literal)
-        .padded_by(comment.repeated())
+    )))
+}
+
+fn integer_literal() -> impl Parser<char, Token, Error = Error> + Clone {
+    choice((
+        text::int(10).map(|s: String| s.parse()),
+        just("0x")
+            .or(just("0X"))
+            .ignore_then(text::int(16).map(|s: String| i64::from_str_radix(&s, 16))),
+        just("0o").ignore_then(text::int(8).map(|s: String| i64::from_str_radix(&s, 8))),
+        just("0b")
+            .or(just("0B"))
+            .ignore_then(text::int(2).map(|s: String| i64::from_str_radix(&s, 2))),
+    ))
+    .map(|res| Token::IntegerLiteral(res.expect("Failed to convert to i64")))
+}
+
+fn string_literal() -> impl Parser<char, Token, Error = Error> + Clone {
+    // TODO: escape sequence
+    just('"')
+        .ignore_then(take_until(just('"')))
+        .map(|(cs, _)| Token::StringLiteral(cs.into_iter().collect::<String>()))
+}
+
+fn float_literal() -> impl Parser<char, Token, Error = Error> + Clone {
+    let exponent = just('e')
+        .or(just('E'))
+        .ignore_then(just('+').or(just('-')).or_not().map(|c| c.unwrap_or('+')))
+        .then(text::int(10))
+        .map(|(a, b)| format!("e{}{}", a, b));
+    // TODO: .1e3
+    choice((
+        text::int(10)
+            .then(exponent)
+            .map(|(a, b)| format!("{}e{}", a, b)),
+        just('.')
+            .ignore_then(text::int(10))
+            .map(|a| format!(".{}", a)),
+        text::int(10)
+            .then_ignore(just('.'))
+            .then(text::int(10).or_not())
+            .then(exponent.or_not())
+            .map(|((a, b), c)| format!("{}.{}{}", a, b.unwrap_or(String::new()), c.unwrap_or(String::new()))),
+    ))
+    .map(|s| Token::FloatLiteral(s.parse().expect("Failed to parse float")))
+}
+
+pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
+    keyword_or_ident()
+        .or(float_literal())
+        .or(integer_literal())
+        .or(string_literal())
+        .or(puncts())
+        .padded_by(comment().repeated())
         .padded()
         .map_with_span(move |token, span| (token, span))
         .repeated()
