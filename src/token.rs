@@ -432,4 +432,22 @@ mod tests {
         }
         assert!(errors.is_empty());
     }
+
+    #[test]
+    fn lexer_works_without_error_qe_qft_5() {
+        let qasm = fs::read_to_string("qasm-examples/ibmqx2/qe_qft_5.qasm")
+            .expect("Sample QASM file not found.");
+        let (tokens, errors) = lexer().parse_recovery_verbose(qasm.as_str());
+        eprintln!("tokens: {:?}", tokens);
+        eprintln!("errors: {:?}", errors);
+        let qasm_chars = qasm.chars().collect::<Vec<_>>();
+        for e in errors.iter() {
+            eprintln!(
+                "span: {:?}, file: {:?}",
+                e.span(),
+                qasm_chars[e.span()].iter().collect::<Vec<_>>()
+            );
+        }
+        assert!(errors.is_empty());
+    }
 }
