@@ -1,15 +1,16 @@
-use crate::error::Error;
 use chumsky::prelude::*;
+use ordered_float::OrderedFloat;
 use std::cmp::PartialEq;
 use std::convert::From;
 use std::ops::Range;
 
 pub type Span = Range<usize>;
+pub type Error = Simple<char>;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Token {
     // Language keywords
-    Openqasm,
+    Openqasm(String),
     Include,
     Pragma,
     Defcalgrammar,
@@ -98,16 +99,16 @@ pub enum Token {
     Imag,
     ConstantLiteral(Constant),
     IntegerLiteral(i64),
-    FloatLiteral(f64),
+    FloatLiteral(OrderedFloat<f64>),
     Identifier(String),
-    TimeUnitLiteral(TimeUnit),
+    // TimeUnitLiteral(TimeUnit),
     BitstringLiteral(String),
     StringLiteral(String),
     // Syntax Error
     SyntaxError(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BuiltinMathToken {
     Arccos,
     Arcsin,
@@ -123,19 +124,19 @@ pub enum BuiltinMathToken {
     Tan,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BuiltinTimingInstructionToken {
     Delay,
     Rotary,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum EqualityOperatorToken {
     Eq,
     Neq,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum CompoundAssignmentOperatorToken {
     PlusEq,
     MinusEq,
@@ -151,7 +152,7 @@ pub enum CompoundAssignmentOperatorToken {
     DoubleAsteriskEq,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ComparisonOperatorToken {
     GT,
     LT,
@@ -159,34 +160,35 @@ pub enum ComparisonOperatorToken {
     LE,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BitshiftOperatorToken {
     LShift,
     RShift,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Constant {
     Pi,
     Tau,
     Euler,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Number {
     Int(i64),
-    Float(f64),
+    Float(OrderedFloat<f64>),
 }
 
 impl From<Number> for f64 {
     fn from(number: Number) -> Self {
         match number {
             Number::Int(x) => x as f64,
-            Number::Float(x) => x,
+            Number::Float(x) => *x,
         }
     }
 }
 
+/*
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum TimeUnit {
     DT,
@@ -195,6 +197,7 @@ pub enum TimeUnit {
     MilliSec,
     Sec,
 }
+*/
 
 fn comment() -> impl Parser<char, (), Error = Error> + Clone {
     choice((
@@ -208,7 +211,6 @@ fn comment() -> impl Parser<char, (), Error = Error> + Clone {
 fn keyword_or_ident() -> impl Parser<char, Token, Error = Error> + Clone {
     text::ident()
         .map(|s: String| match s.as_str() {
-            "OPENQASM" => Token::Openqasm,
             "include" => Token::Include,
             "defcalgrammar" => Token::Defcalgrammar,
             "defcal" => Token::Defcal,
@@ -270,11 +272,11 @@ fn keyword_or_ident() -> impl Parser<char, Token, Error = Error> + Clone {
             "pi" => Token::ConstantLiteral(Constant::Pi),
             "tau" => Token::ConstantLiteral(Constant::Tau),
             "euler" => Token::ConstantLiteral(Constant::Euler),
-            "dt" => Token::TimeUnitLiteral(TimeUnit::DT),
-            "ns" => Token::TimeUnitLiteral(TimeUnit::NanoSec),
-            "us" => Token::TimeUnitLiteral(TimeUnit::MicroSec),
-            "ms" => Token::TimeUnitLiteral(TimeUnit::MilliSec),
-            "s" => Token::TimeUnitLiteral(TimeUnit::Sec),
+            // "dt" => Token::TimeUnitLiteral(TimeUnit::DT),
+            // "ns" => Token::TimeUnitLiteral(TimeUnit::NanoSec),
+            // "us" => Token::TimeUnitLiteral(TimeUnit::MicroSec),
+            // "ms" => Token::TimeUnitLiteral(TimeUnit::MilliSec),
+            // "s" => Token::TimeUnitLiteral(TimeUnit::Sec),
             "if" => Token::If,
             "im" => Token::Imag,
             "in" => Token::In,
@@ -296,7 +298,7 @@ fn keyword_or_ident() -> impl Parser<char, Token, Error = Error> + Clone {
             just("π").to(Token::ConstantLiteral(Constant::Pi)),
             just("τ").to(Token::ConstantLiteral(Constant::Tau)),
             just("ℇ").to(Token::ConstantLiteral(Constant::Euler)),
-            just("μs").to(Token::TimeUnitLiteral(TimeUnit::MicroSec)),
+            // just("μs").to(Token::TimeUnitLiteral(TimeUnit::MicroSec)),
         )))
 }
 
@@ -418,13 +420,20 @@ fn float_literal() -> impl Parser<char, Token, Error = Error> + Clone {
             .then_ignore(just('.'))
             .then(text::int(10).or_not())
             .then(exponent.or_not())
-            .map(|((a, b), c)| format!("{}.{}{}", a, b.unwrap_or(String::new()), c.unwrap_or(String::new()))),
+            .map(|((a, b), c)| format!("{}.{}{}", a, b.unwrap_or_default(), c.unwrap_or_default())),
     ))
     .map(|s| Token::FloatLiteral(s.parse().expect("Failed to parse float")))
 }
 
+fn openqasm_ver() -> impl Parser<char, Token, Error = Error> + Clone {
+    just("OPENQASM").padded()
+                    .ignore_then(text::int(10).separated_by(just('.')))
+                    .map(|v| Token::Openqasm(v.join(".")))
+}
+
 pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
-    keyword_or_ident()
+    openqasm_ver()
+        .or(keyword_or_ident())
         .or(float_literal())
         .or(integer_literal())
         .or(string_literal())
@@ -449,7 +458,7 @@ mod tests {
                 .parse("OPENQASM qubit#dimπU/**//*aa */foo//   comment")
                 .map(|v| v.into_iter().map(|(token, _)| token).collect()),
             Ok(vec![
-                Token::Openqasm,
+                Token::Openqasm(String::new()),
                 Token::Qubit,
                 Token::Dim,
                 Token::ConstantLiteral(Constant::Pi),
@@ -460,8 +469,47 @@ mod tests {
     }
 
     #[test]
+    fn lexer_openqasm_ver0() {
+        assert_eq!(
+            lexer()
+                .parse("OPENQASM if")
+                .map(|v| v.into_iter().map(|(token, _)| token).collect()),
+            Ok(vec![
+                Token::Openqasm("".to_owned()),
+                Token::If,
+            ])
+        );
+    }
+
+    #[test]
+    fn lexer_openqasm_ver2() {
+        assert_eq!(
+            lexer()
+                .parse("OPENQASM 3.0 1")
+                .map(|v| v.into_iter().map(|(token, _)| token).collect()),
+            Ok(vec![
+                Token::Openqasm("3.0".to_owned()),
+                Token::IntegerLiteral(1),
+            ])
+        );
+    }
+
+    #[test]
+    fn lexer_openqasm_ver3() {
+        assert_eq!(
+            lexer()
+                .parse("OPENQASM 3.0.1 1")
+                .map(|v| v.into_iter().map(|(token, _)| token).collect()),
+            Ok(vec![
+                Token::Openqasm("3.0.1".to_owned()),
+                Token::IntegerLiteral(1),
+            ])
+        );
+    }
+
+    #[test]
     fn lexer_read_unknown_punkt_is_error() {
-        assert!(lexer().parse("OPENQASM $ if").is_err());
+        assert!(lexer().parse("while $ if").is_err());
     }
 
     #[test]
