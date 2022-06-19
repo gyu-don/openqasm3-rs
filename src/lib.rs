@@ -1,5 +1,6 @@
 pub mod token;
 pub mod program;
+pub mod expression;
 pub mod statement;
 
 #[cfg(test)]

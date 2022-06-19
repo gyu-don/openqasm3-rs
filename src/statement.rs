@@ -1,16 +1,11 @@
 use chumsky::prelude::*;
-use crate::token::Token;
-
+use crate::{token::Token, expression::{Expression, expression_parser}};
 type Error = Simple<Token>;
 
 type Identifier = String;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Scope {}
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Expression {}
 type Designator = Expression;
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct AliasExpression {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DeclarationExpression {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -41,9 +36,7 @@ pub struct ArrayType {
     expressions: Vec<Expression>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum QubitType {
-}
+type QubitType = Option<Designator>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum IO {
@@ -74,7 +67,7 @@ pub enum MeasureExpression {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Statement {
     Pragma,
-    AliasDeclaration(Identifier, AliasExpression),
+    AliasDeclaration(Identifier, Vec<Expression>),
     Assignment(IndexedIdentifier, Token /* EQUALS | CompoundAssignmentOperator */, MeasureExpression),
     Barrier(Vec<GateOperand>),
     Box(Option<Designator>),
@@ -101,4 +94,20 @@ pub enum Statement {
     Reset(GateOperand),
     Return(MeasureExpression),
     While(Expression, Scope),
+}
+
+pub fn statement_parser() -> impl Parser<Token, Statement, Error = Error> + Clone {
+    // TODO: pragma, annotation, openpulse insts
+    choice((
+        just(Token::Qubit).ignore_then(expression_parser().or_not())
+                          .then(select!{Token::Identifier(ident) => ident})
+                          .then_ignore(just(Token::Semicolon))
+                          .map(|(designator, ident)| Statement::QuantumDeclaration(designator, ident)),
+        //just(Token::Const).ignore_then()
+        //                  .then(select!{Token::Identifier(ident) => ident})
+        just(Token::Let).ignore_then(select!{Token::Identifier(ident) => ident})
+                        .then_ignore(just(Token::Equals))
+                        .then(expression_parser().repeated().separated_by(just(Token::DoublePlus)))
+                        .map(|(ident, exprs)| Statement::AliasDeclaration(ident, exprs)),
+    ))
 }

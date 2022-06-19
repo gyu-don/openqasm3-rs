@@ -1,4 +1,4 @@
-use crate::{token::Token, statement::Statement};
+use crate::{token::Token, statement::{Statement, statement_parser}};
 use chumsky::prelude::*;
 
 pub type Error = Simple<Token>;
@@ -12,10 +12,13 @@ pub struct Program {
 pub fn parser() -> impl Parser<Token, Program, Error = Error> {
     select! {
         Token::Openqasm(ver) => ver,
-    }.then_ignore(just(Token::Semicolon)).or_not().map(|version|
+    }.then_ignore(just(Token::Semicolon))
+     .or_not()
+     .then(statement_parser().repeated())
+     .map(|(version, statements)|
         Program {
             version,
-            statements: vec![],
+            statements,
         })
 }
 
