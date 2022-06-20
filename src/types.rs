@@ -5,7 +5,6 @@ use crate::{
 use chumsky::prelude::*;
 type Error = Simple<Token>;
 
-type Identifier = String;
 type Designator = Expression;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -27,7 +26,7 @@ pub struct ArrayType {
     expressions: Vec<Expression>,
 }
 
-type QubitType = Option<Designator>;
+pub type QubitType = Option<Designator>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum IO {

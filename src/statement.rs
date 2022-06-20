@@ -1,6 +1,7 @@
 use crate::{
     expression::{expression_parser, Expression},
     token::Token,
+    types::{ArrayType, ScalarType, QubitType},
 };
 use chumsky::prelude::*;
 type Error = Simple<Token>;
@@ -19,27 +20,6 @@ pub struct IndexedIdentifier {}
 pub struct HardwareQubit {}
 
 type GateOperand = IndexedIdentifier;
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ScalarType {
-    Bit(Option<Designator>),
-    Int(Option<Designator>),
-    UInt(Option<Designator>),
-    Float(Option<Designator>),
-    Angle(Option<Designator>),
-    Bool,
-    Duration,
-    Stretch,
-    Complex(Option<Box<ScalarType>>),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ArrayType {
-    scalar_type: ScalarType,
-    expressions: Vec<Expression>,
-}
-
-type QubitType = Option<Designator>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum IO {
