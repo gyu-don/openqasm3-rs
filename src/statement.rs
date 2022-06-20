@@ -1,5 +1,8 @@
+use crate::{
+    expression::{expression_parser, Expression},
+    token::Token,
+};
 use chumsky::prelude::*;
-use crate::{token::Token, expression::{Expression, expression_parser}};
 type Error = Simple<Token>;
 
 type Identifier = String;
@@ -51,12 +54,10 @@ pub enum OldStyleRegister {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ArgumentDefinition {
-}
+pub enum ArgumentDefinition {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum ExternArgument {
-}
+pub enum ExternArgument {}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum MeasureExpression {
@@ -68,7 +69,11 @@ pub enum MeasureExpression {
 pub enum Statement {
     Pragma,
     AliasDeclaration(Identifier, Vec<Expression>),
-    Assignment(IndexedIdentifier, Token /* EQUALS | CompoundAssignmentOperator */, MeasureExpression),
+    Assignment(
+        IndexedIdentifier,
+        Token, /* EQUALS | CompoundAssignmentOperator */
+        MeasureExpression,
+    ),
     Barrier(Vec<GateOperand>),
     Box(Option<Designator>),
     Break,
@@ -77,13 +82,24 @@ pub enum Statement {
     ConstDeclaration(ScalarType, Identifier, DeclarationExpression),
     Continue,
     Def(Identifier, Vec<ArgumentDefinition>, ScalarType),
-    Defcal(Identifier, Vec<ArgumentDefinition>, Vec<HardwareQubit>, Option<ScalarType>),
+    Defcal(
+        Identifier,
+        Vec<ArgumentDefinition>,
+        Vec<HardwareQubit>,
+        Option<ScalarType>,
+    ),
     Delay(Designator, Vec<GateOperand>),
     End,
     Expression(Expression),
     Extern(Identifier, Vec<ExternArgument>, ScalarType),
-    For /*  FOR scalarType Identifier IN (setExpression | LBRACKET rangeExpression RBRACKET | Identifier) body=statementOrScope; */,
-    GateCall(Vec<GateModifier>, String, Vec<Expression>, Option<Designator>, Vec<GateOperand>),
+    For, /*  FOR scalarType Identifier IN (setExpression | LBRACKET rangeExpression RBRACKET | Identifier) body=statementOrScope; */
+    GateCall(
+        Vec<GateModifier>,
+        String,
+        Vec<Expression>,
+        Option<Designator>,
+        Vec<GateOperand>,
+    ),
     Gate(Identifier, Vec<Identifier>, Vec<Identifier>, Scope),
     If(Expression, Scope),
     Include(String),
@@ -99,15 +115,17 @@ pub enum Statement {
 pub fn statement_parser() -> impl Parser<Token, Statement, Error = Error> + Clone {
     // TODO: pragma, annotation, openpulse insts
     choice((
-        just(Token::Qubit).ignore_then(expression_parser().or_not())
-                          .then(select!{Token::Identifier(ident) => ident})
-                          .then_ignore(just(Token::Semicolon))
-                          .map(|(designator, ident)| Statement::QuantumDeclaration(designator, ident)),
+        just(Token::Qubit)
+            .ignore_then(expression_parser().or_not())
+            .then(select! {Token::Identifier(ident) => ident})
+            .then_ignore(just(Token::Semicolon))
+            .map(|(designator, ident)| Statement::QuantumDeclaration(designator, ident)),
         //just(Token::Const).ignore_then()
         //                  .then(select!{Token::Identifier(ident) => ident})
-        just(Token::Let).ignore_then(select!{Token::Identifier(ident) => ident})
-                        .then_ignore(just(Token::Equals))
-                        .then(expression_parser().repeated().separated_by(just(Token::DoublePlus)))
-                        .map(|(ident, exprs)| Statement::AliasDeclaration(ident, exprs)),
+        just(Token::Let)
+            .ignore_then(select! {Token::Identifier(ident) => ident})
+            .then_ignore(just(Token::Equals))
+            .then(expression_parser().separated_by(just(Token::DoublePlus)))
+            .map(|(ident, exprs)| Statement::AliasDeclaration(ident, exprs)),
     ))
 }

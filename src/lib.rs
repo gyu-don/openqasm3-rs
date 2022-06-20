@@ -1,7 +1,7 @@
-pub mod token;
-pub mod program;
 pub mod expression;
+pub mod program;
 pub mod statement;
+pub mod token;
 pub mod types;
 
 #[cfg(test)]

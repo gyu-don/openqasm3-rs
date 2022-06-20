@@ -1,11 +1,13 @@
-use chumsky::prelude::*;
 use crate::token::Token;
+use chumsky::prelude::*;
 
 type Error = Simple<Token>;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-enum Expression {}
+pub enum Expression {
+    Dummy,
+}
 
 pub fn expression_parser() -> impl Parser<Token, Expression, Error = Error> + Clone {
-    unimplemented!()
+    empty().map(|_| Expression::Dummy)
 }

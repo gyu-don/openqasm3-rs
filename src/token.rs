@@ -426,9 +426,10 @@ fn float_literal() -> impl Parser<char, Token, Error = Error> + Clone {
 }
 
 fn openqasm_ver() -> impl Parser<char, Token, Error = Error> + Clone {
-    just("OPENQASM").padded()
-                    .ignore_then(text::int(10).separated_by(just('.')))
-                    .map(|v| Token::Openqasm(v.join(".")))
+    just("OPENQASM")
+        .padded()
+        .ignore_then(text::int(10).separated_by(just('.')))
+        .map(|v| Token::Openqasm(v.join(".")))
 }
 
 pub fn lexer() -> impl Parser<char, Vec<(Token, Span)>, Error = Error> {
@@ -474,10 +475,7 @@ mod tests {
             lexer()
                 .parse("OPENQASM if")
                 .map(|v| v.into_iter().map(|(token, _)| token).collect()),
-            Ok(vec![
-                Token::Openqasm("".to_owned()),
-                Token::If,
-            ])
+            Ok(vec![Token::Openqasm("".to_owned()), Token::If,])
         );
     }
 
