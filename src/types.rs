@@ -40,7 +40,7 @@ pub enum OldStyleRegister {
     QReg,
 }
 
-pub fn scalar_type_parser() -> impl Parser<Token, ScalarType, Error = Error> {
+pub fn scalar_type_parser() -> impl Parser<Token, ScalarType, Error = Error> + Clone {
     recursive(|scalar_type| {
         choice((
             just(Token::Bit)
@@ -74,7 +74,7 @@ pub fn scalar_type_parser() -> impl Parser<Token, ScalarType, Error = Error> {
     })
 }
 
-pub fn array_type_parser() -> impl Parser<Token, ArrayType, Error = Error> {
+pub fn array_type_parser() -> impl Parser<Token, ArrayType, Error = Error> + Clone {
     just(Token::Array)
         .ignore_then(just(Token::LBracket))
         .ignore_then(scalar_type_parser())

@@ -9,5 +9,5 @@ pub enum Expression {
 }
 
 pub fn expression_parser() -> impl Parser<Token, Expression, Error = Error> + Clone {
-    empty().map(|_| Expression::Dummy)
+    just(Token::Semicolon).map(|_| Expression::Dummy)
 }

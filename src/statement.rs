@@ -1,7 +1,7 @@
 use crate::{
     expression::{expression_parser, Expression},
     token::Token,
-    types::{ArrayType, ScalarType, QubitType},
+    types::{array_type_parser, scalar_type_parser, ArrayType, QubitType, ScalarType},
 };
 use chumsky::prelude::*;
 type Error = Simple<Token>;
@@ -10,8 +10,6 @@ type Identifier = String;
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Scope {}
 type Designator = Expression;
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DeclarationExpression {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct GateModifier {}
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -46,6 +44,16 @@ pub enum MeasureExpression {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum ArrayLiteral {}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum DeclarationExpression {
+    ArrayLiteral(ArrayLiteral),
+    Measure(GateOperand),
+    Expression(Expression),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Statement {
     Pragma,
     AliasDeclaration(Identifier, Vec<Expression>),
@@ -58,7 +66,7 @@ pub enum Statement {
     Box(Option<Designator>),
     Break,
     CalibrationGrammer(String),
-    ClassicalDeclaration(ArrayType, Identifier, DeclarationExpression),
+    ClassicalDeclaration(ArrayType, Identifier, Option<DeclarationExpression>),
     ConstDeclaration(ScalarType, Identifier, DeclarationExpression),
     Continue,
     Def(Identifier, Vec<ArgumentDefinition>, ScalarType),
@@ -93,19 +101,49 @@ pub enum Statement {
 }
 
 pub fn statement_parser() -> impl Parser<Token, Statement, Error = Error> + Clone {
-    // TODO: pragma, annotation, openpulse insts
+    let identifier = select! {Token::Identifier(ident) => ident};
+    let declaration_expression_parser = || expression_parser().map(DeclarationExpression::Expression); // TODO: MeasureExpression | arrayLiteral
+                                                                                             // TODO: pragma, annotation, openpulse insts
     choice((
         just(Token::Qubit)
             .ignore_then(expression_parser().or_not())
-            .then(select! {Token::Identifier(ident) => ident})
+            .then(identifier)
             .then_ignore(just(Token::Semicolon))
             .map(|(designator, ident)| Statement::QuantumDeclaration(designator, ident)),
-        //just(Token::Const).ignore_then()
-        //                  .then(select!{Token::Identifier(ident) => ident})
+        just(Token::Const)
+            .ignore_then(scalar_type_parser())
+            .then(identifier)
+            .then_ignore(just(Token::Equals))
+            .then(declaration_expression_parser())
+            .then_ignore(just(Token::Semicolon))
+            .map(|((scalar_type, ident), decl_expr)| {
+                Statement::ConstDeclaration(scalar_type, ident, decl_expr)
+            }),
         just(Token::Let)
             .ignore_then(select! {Token::Identifier(ident) => ident})
             .then_ignore(just(Token::Equals))
             .then(expression_parser().separated_by(just(Token::DoublePlus)))
+            .then_ignore(just(Token::Semicolon))
             .map(|(ident, exprs)| Statement::AliasDeclaration(ident, exprs)),
+        array_type_parser()
+            .then(identifier)
+            .then(just(Token::Equals).ignore_then(declaration_expression_parser().or_not()))
+            .then_ignore(just(Token::Semicolon))
+            .map(|((array_type, ident), decl_expr)| {
+                Statement::ClassicalDeclaration(array_type, ident, decl_expr)
+            }),
+        choice((just(Token::Input).map(|_| IO::Input), just(Token::Output).map(|_| IO::Output)))
+            .then(array_type_parser())
+            .then(identifier)
+            .then_ignore(just(Token::Semicolon))
+            .map(|((io, array_type), ident)| {
+                Statement::IoDeclaration(io, array_type, ident)
+            }),
+        choice((just(Token::Qreg).map(|_| OldStyleRegister::QReg), just(Token::Creg).map(|_| OldStyleRegister::CReg)))
+            .then(identifier)
+            .then(expression_parser().or_not())
+            .map(|((reg, ident), designator)| {
+                Statement::OldStyleDeclaration(reg, ident, designator)
+            }),
     ))
 }
